@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Foundation models for LandGuard Land Records, Transactions, and Audit Trail
+model LandRecord {
+  id              String               @id @default(cuid())
+  parcelId        String               @unique
+  deedNumber      String               @unique
+  ownerName       String
+  ownerNationalId String
+  areaSqFt        Float
+  boundaryGeoJson String?
+  status          String               @default("ACTIVE") // ACTIVE, DISPUTED, FLAGGED, TRANSFERRED
+  recordHash      String
+  previousHash    String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  transactions    Transaction[]
+  registrations   RegistrationRecord[]
+  mutations       MutationRecord[]
+
+  @@index([parcelId])
+  @@index([deedNumber])
+}
+
+model Transaction {
+  id                   String              @id @default(cuid())
+  transactionReference String?             @unique
+  parcelId             String
+  sellerName           String
+  sellerId             String
+  buyerName            String
+  buyerId              String
+  transactionDate      DateTime            @default(now())
+  amount               Float
+  status               String              @default("PROPOSED") // PROPOSED, REGISTERED, COMPLETED, REJECTED, CANCELLED
+  recordHash           String
+  landRecordId         String
+  landRecord           LandRecord          @relation(fields: [landRecordId], references: [id], onDelete: Cascade)
+  registrationRecord   RegistrationRecord?
+  mutationRecord       MutationRecord?
+  createdAt            DateTime            @default(now())
+
+  @@index([parcelId])
+  @@index([landRecordId])
+  @@index([transactionReference])
+}
+
+model RegistrationRecord {
+  id                 String       @id @default(cuid())
+  registrationNumber String       @unique
+  transactionId      String?      @unique
+  transaction        Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  parcelId           String
+  landRecord         LandRecord   @relation(fields: [parcelId], references: [parcelId], onDelete: Cascade)
+  deedNumber         String
+  registeredDate     DateTime     @default(now())
+  status             String       @default("REGISTERED") // REGISTERED, REJECTED, PENDING
+  registryOffice     String
+  recordHash         String
+  createdAt          DateTime     @default(now())
+
+  @@index([parcelId])
+  @@index([deedNumber])
+}
+
+model MutationRecord {
+  id                     String       @id @default(cuid())
+  mutationCaseNumber     String       @unique
+  parcelId               String
+  landRecord             LandRecord   @relation(fields: [parcelId], references: [parcelId], onDelete: Cascade)
+  transactionId          String?      @unique
+  transaction            Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  khatianNumber          String?
+  mutatedOwnerName       String
+  mutatedOwnerNationalId String
+  status                 String       @default("APPROVED") // APPROVED, REJECTED, PENDING
+  approvedDate           DateTime?
+  revenueOffice          String
+  recordHash             String
+  createdAt              DateTime     @default(now())
+
+  @@index([parcelId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  details     String
+  performedBy String   @default("SYSTEM")
+  timestamp   DateTime @default(now())
+}
